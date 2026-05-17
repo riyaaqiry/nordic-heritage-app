@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "Nordic Heritage",
+    "slug": "nordic-heritage",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a5276"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "se.nordicdigitalsolutions.heritage",
+      "infoPlist": {
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Vi behöver din plats för att meddela dig när du är nära ett UNESCO-världsarv.",
+        "NSLocationWhenInUseUsageDescription": "Vi behöver din plats för att visa världsarv i din närhet.",
+        "UIBackgroundModes": ["location", "fetch", "remote-notification"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a5276"
+      },
+      "package": "se.nordicdigitalsolutions.heritage",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Vi behöver din plats för att meddela dig när du är nära ett UNESCO-världsarv.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#1a5276"
+        }
+      ]
+    ]
+  }
+}
