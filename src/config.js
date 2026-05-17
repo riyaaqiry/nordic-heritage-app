@@ -1,7 +1,5 @@
 // Byt denna URL till er servers riktiga adress vid deployment
-export const API_BASE_URL = __DEV__
-  ? 'http://192.168.1.100:8000'  // Byt till din lokala IP vid utveckling
-  : 'https://api.nordicdigitalsolutions.se';
+export const API_BASE_URL = 'https://unrushed-maximum-subatomic.ngrok-free.dev';
 
 // Avstånd i meter för att trigga notis om världsarv
 export const PROXIMITY_THRESHOLD_METERS = 5000;

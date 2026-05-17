@@ -16,6 +16,10 @@ import {
   startBackgroundLocationTracking,
   stopBackgroundLocationTracking,
 } from '../services/location';
+import {
+  startForegroundTracking,
+  stopForegroundTracking,
+} from '../services/foregroundTracking';
 import { registerForPushNotifications } from '../services/notifications';
 
 export default function SettingsScreen() {
@@ -23,6 +27,7 @@ export default function SettingsScreen() {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [trackingEnabled, setTrackingEnabled] = useState(false);
+  const [trackingMode, setTrackingMode] = useState(null); // 'background' | 'foreground'
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
 
@@ -35,32 +40,68 @@ export default function SettingsScreen() {
     const storedPhone = await AsyncStorage.getItem('phone');
     const storedEmail = await AsyncStorage.getItem('email');
     const storedTracking = await AsyncStorage.getItem('tracking_enabled');
+    const storedMode = await AsyncStorage.getItem('tracking_mode');
     const storedSubscribed = await AsyncStorage.getItem('is_subscribed');
 
     if (storedUserId) setUserId(storedUserId);
     if (storedPhone) setPhone(storedPhone);
     if (storedEmail) setEmail(storedEmail);
-    if (storedTracking === 'true') setTrackingEnabled(true);
     if (storedSubscribed === 'true') setIsSubscribed(true);
+
+    if (storedTracking === 'true') {
+      setTrackingEnabled(true);
+      // Återstarta förgrundsspårning (bakgrund körs redan via TaskManager)
+      if (storedMode === 'foreground') {
+        setTrackingMode('foreground');
+        startForegroundTracking();
+      } else if (storedMode === 'background') {
+        setTrackingMode('background');
+      }
+    }
   };
 
   const handleToggleTracking = async (value) => {
     if (value) {
       const perms = await requestLocationPermissions();
-      if (!perms.background) {
+      if (!perms.foreground) {
         Alert.alert(
           'Behörighet saknas',
-          'Du måste tillåta platsåtkomst "Alltid" för att bakgrundsspårning ska fungera. Gå till Inställningar > Nordic Heritage > Plats.'
+          'Du måste tillåta platsåtkomst för att spårning ska fungera.'
         );
         return;
       }
-      await startBackgroundLocationTracking();
+
+      if (perms.background) {
+        // Fullständig bakgrundsspårning (kräver development build)
+        try {
+          await startBackgroundLocationTracking();
+          setTrackingMode('background');
+          setTrackingEnabled(true);
+          await AsyncStorage.setItem('tracking_enabled', 'true');
+          await AsyncStorage.setItem('tracking_mode', 'background');
+          return;
+        } catch (err) {
+          console.warn('Bakgrundsspårning misslyckades, använder förgrund:', err);
+        }
+      }
+
+      // Fallback: förgrundsspårning (fungerar i Expo Go)
+      await startForegroundTracking();
+      setTrackingMode('foreground');
       setTrackingEnabled(true);
       await AsyncStorage.setItem('tracking_enabled', 'true');
+      await AsyncStorage.setItem('tracking_mode', 'foreground');
     } else {
-      await stopBackgroundLocationTracking();
+      // Stoppa allt
+      if (trackingMode === 'background') {
+        await stopBackgroundLocationTracking();
+      } else {
+        stopForegroundTracking();
+      }
       setTrackingEnabled(false);
+      setTrackingMode(null);
       await AsyncStorage.setItem('tracking_enabled', 'false');
+      await AsyncStorage.setItem('tracking_mode', '');
     }
   };
 
@@ -114,9 +155,13 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>Platsspårning</Text>
         <View style={styles.row}>
           <View style={styles.rowText}>
-            <Text style={styles.label}>Bakgrundsspårning</Text>
+            <Text style={styles.label}>Platsspårning</Text>
             <Text style={styles.hint}>
-              Få notiser även när appen är stängd
+              {trackingEnabled
+                ? trackingMode === 'background'
+                  ? '✅ Bakgrundsspårning aktiv — fungerar även när appen är stängd'
+                  : '✅ Förgrundsspårning aktiv — fungerar medan appen är öppen'
+                : 'Få notiser när du är nära ett världsarv'}
             </Text>
           </View>
           <Switch

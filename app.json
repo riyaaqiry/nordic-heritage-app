@@ -17,7 +17,11 @@
       "infoPlist": {
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Vi behöver din plats för att meddela dig när du är nära ett UNESCO-världsarv.",
         "NSLocationWhenInUseUsageDescription": "Vi behöver din plats för att visa världsarv i din närhet.",
-        "UIBackgroundModes": ["location", "fetch", "remote-notification"]
+        "UIBackgroundModes": [
+          "location",
+          "fetch",
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -47,7 +51,8 @@
           "icon": "./assets/notification-icon.png",
           "color": "#1a5276"
         }
-      ]
+      ],
+      "expo-asset"
     ]
   }
 }
