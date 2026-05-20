@@ -1,13 +1,23 @@
 import { API_BASE_URL } from '../config';
 
-const DEFAULT_HEADERS = {
-  'ngrok-skip-browser-warning': 'true',
-};
+const DEFAULT_HEADERS = {};
 
 const JSON_HEADERS = {
-  ...DEFAULT_HEADERS,
   'Content-Type': 'application/json',
 };
+
+export async function loginUser(email, password) {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.detail || 'Inloggningen misslyckades');
+  }
+  return response.json();
+}
 
 export async function fetchNearbySites(lat, lon, radius = 150) {
   const response = await fetch(

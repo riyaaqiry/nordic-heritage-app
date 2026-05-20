@@ -7,21 +7,18 @@ React Native (Expo) app som integrerar med Nordic Digital Solutions annonsmodul.
 ## Innehåll
 
 1. [Förutsättningar](#förutsättningar)
-2. [Ladda ner projektet](#ladda-ner-projektet)
-3. [Installation](#installation)
-4. [Konfigurera backend-URL](#konfigurera-backend-url)
-5. [Starta appen](#starta-appen)
-6. [Öppna på telefonen (iOS & Android)](#öppna-på-telefonen)
-7. [Köra egen backend med ngrok](#köra-egen-backend-med-ngrok)
-8. [Funktioner i appen](#funktioner-i-appen)
-9. [Projektstruktur](#projektstruktur)
-10. [Vanliga problem och lösningar](#vanliga-problem-och-lösningar)
+2. [Installation](#installation)
+3. [Starta appen](#starta-appen)
+4. [Öppna på telefonen (iOS & Android)](#öppna-på-telefonen)
+5. [Funktioner i appen](#funktioner-i-appen)
+6. [Projektstruktur](#projektstruktur)
+7. [API-endpoints som appen använder](#api-endpoints-som-appen-använder)
+8. [Lokal utveckling (valfritt)](#lokal-utveckling-valfritt)
+9. [Vanliga problem och lösningar](#vanliga-problem-och-lösningar)
 
 ---
 
 ## Förutsättningar
-
-Installera följande **innan** du börjar:
 
 | Verktyg | Version | Installera |
 |---------|---------|------------|
@@ -34,30 +31,10 @@ Installera följande **innan** du börjar:
 
 ---
 
-## Ladda ner projektet
-
-### Alt 1 - Git (rekommenderat)
-
-```bash
-git clone <repo-url>
-cd nordic-heritage-app
-```
-
-### Alt 2 - Manuellt
-
-Ladda ner ZIP-filen, packa upp och navigera till mappen:
-
-```bash
-cd nordic-heritage-app
-```
-
----
-
 ## Installation
 
-Kör i projektmappen:
-
 ```bash
+cd nordic-heritage-app
 npm install --legacy-peer-deps
 ```
 
@@ -65,30 +42,7 @@ npm install --legacy-peer-deps
 
 ---
 
-## Konfigurera backend-URL
-
-Appen behöver nå backend-servern via en publik URL. Vi använder **ngrok** med en statisk domän.
-
-Öppna `src/config.js`:
-
-```javascript
-export const API_BASE_URL = 'https://unrushed-maximum-subatomic.ngrok-free.dev';
-```
-
-Ändra URL:en **bara om** backend körs på en annan adress. Om du kör backend lokalt behöver ngrok vara igång:
-
-```bash
-# I backend-mappen (Nordic-Digital-Solutions)
-ngrok http --url=unrushed-maximum-subatomic.ngrok-free.dev 8000
-```
-
-> Ngrok-domänen är permanent och ändras inte mellan sessioner.
-
----
-
 ## Starta appen
-
-Kör i projektmappen:
 
 ```bash
 npx expo start --host lan
@@ -96,7 +50,7 @@ npx expo start --host lan
 
 > `--host lan` är **viktigt** — utan det försöker telefonen ansluta till `localhost` vilket inte fungerar.
 
-Du ser nu en QR-kod i terminalen.
+Du ser nu en QR-kod i terminalen. Ingen backend eller ngrok behövs — appen pekar direkt mot produktionsservern `nds.samincodes.com`.
 
 ---
 
@@ -107,87 +61,16 @@ Du ser nu en QR-kod i terminalen.
 1. Öppna **Kamera-appen** (inte Expo Go)
 2. Rikta kameran mot QR-koden i terminalen
 3. Tryck på bannern "Öppna i Expo Go" som dyker upp
-4. Appen laddas och startar
 
 ### Android
 
 1. Öppna **Expo Go**-appen
 2. Tryck **Scan QR code**
 3. Skanna QR-koden i terminalen
-4. Appen laddas och startar
 
 ### Flera användare samtidigt
 
-Alla i gruppen kan öppna appen samtidigt så länge:
-- Din dator (som kör `npx expo start`) och alla telefoner är på **samma Wi-Fi-nätverk**
-- Backend + ngrok-tunneln är igång
-
-Varje telefon kör sin egen instans av appen med egen prenumerationsdata.
-
----
-
-## Köra egen backend med ngrok
-
-### Om du bara testar appen (ingen egen backend)
-
-Du behöver inte göra något extra. Appen pekar redan mot den delade ngrok-URL:en i `src/config.js`. Så länge den som äger tunneln kör sin backend + ngrok fungerar det för alla.
-
-### Om du vill köra egen backend på din dator
-
-Ngrok-domänen i `src/config.js` är knuten till ett specifikt ngrok-konto. Du kan **inte** använda någon annans domän — du får felet `ERR_NGROK_DOMAIN_NOT_FOUND`. Du behöver skapa en egen tunnel:
-
-**1. Skapa gratis ngrok-konto**
-
-Gå till [ngrok.com](https://dashboard.ngrok.com/signup) och skapa ett konto.
-
-**2. Installera ngrok och lägg till din authtoken**
-
-```bash
-# macOS
-brew install ngrok
-
-# Eller ladda ner från https://ngrok.com/download
-
-# Lägg till din token (hittas på https://dashboard.ngrok.com/get-started/your-authtoken)
-ngrok config add-authtoken <din-token>
-```
-
-**3. Skapa en statisk domän (gratis, 1 st per konto)**
-
-Gå till [ngrok Dashboard → Domains](https://dashboard.ngrok.com/domains) och klicka **Create Domain**. Du får en domän i stil med:
-
-```
-ditt-unika-namn.ngrok-free.dev
-```
-
-**4. Starta tunneln mot din lokala backend**
-
-```bash
-ngrok http --url=ditt-unika-namn.ngrok-free.dev 8000
-```
-
-**5. Uppdatera `src/config.js` med din domän**
-
-```javascript
-export const API_BASE_URL = 'https://ditt-unika-namn.ngrok-free.dev';
-```
-
-**6. Starta backend + app**
-
-```bash
-# Terminal 1 — backend
-cd Nordic-Digital-Solutions
-source .venv/bin/activate
-uvicorn app:app --host 0.0.0.0 --port 8000
-
-# Terminal 2 — ngrok (redan startad i steg 4)
-
-# Terminal 3 — Expo-appen
-cd nordic-heritage-app
-npx expo start --host lan
-```
-
-> **Tips:** Den statiska domänen är permanent och ändras aldrig, men ngrok-processen måste köras för att tunneln ska vara aktiv.
+Alla i gruppen kan öppna appen samtidigt — telefonen behöver bara vara på samma Wi-Fi som datorn som kör `npx expo start`.
 
 ---
 
@@ -237,7 +120,7 @@ nordic-heritage-app/
 │   │   ├── WidgetScreen.js        # "Annonsmodul" — WebView med widget
 │   │   └── SettingsScreen.js      # "Inställningar" — spårning & prenumeration
 │   └── services/
-│       ├── api.js                 # HTTP-anrop till backend (med ngrok-header)
+│       ├── api.js                 # HTTP-anrop till backend
 │       ├── location.js            # Platsbehörigheter + bakgrundsspårning
 │       ├── locationTask.js        # Bakgrundsuppgift (TaskManager)
 │       ├── foregroundTracking.js  # Förgrundsspårning (fallback i Expo Go)
@@ -248,6 +131,8 @@ nordic-heritage-app/
 ---
 
 ## API-endpoints som appen använder
+
+Alla anrop går mot `https://nds.samincodes.com`.
 
 | Metod | Endpoint | Beskrivning |
 |-------|----------|-------------|
@@ -260,21 +145,36 @@ nordic-heritage-app/
 
 ---
 
-## Vanliga problem och lösningar
+## Lokal utveckling (valfritt)
 
-### "Inga världsarv hittades i din närhet" men Annonsmodul visar data
+Om du vill köra mot en lokal backend istället för produktionsservern, ändra `src/config.js`:
 
-Ngrok-tunneln är inte igång. Starta den:
+```javascript
+export const API_BASE_URL = 'http://<din-dators-ip>:8000';
+```
+
+Starta sedan backend:
 
 ```bash
-ngrok http --url=unrushed-maximum-subatomic.ngrok-free.dev 8000
+cd Nordic-Digital-Solutions
+source .venv/bin/activate
+uvicorn app:app --host 0.0.0.0 --port 8000
 ```
+
+> Telefonen och datorn måste vara på samma Wi-Fi. Använd datorns LAN-IP (t.ex. `192.168.1.x`), inte `localhost`.
+
+---
+
+## Vanliga problem och lösningar
+
+### "Inga världsarv hittades i din närhet"
+
+Kontrollera att platsdelning är aktiverad på telefonen och att appen har fått platsbehörighet.
 
 ### Appen hittar inte servern / "Network request failed"
 
-- Kontrollera att datorn och telefonen är på **samma Wi-Fi**
-- Kontrollera att backend (`uvicorn`) och ngrok körs
-- Testa URL:en i telefonens webbläsare: `https://unrushed-maximum-subatomic.ngrok-free.dev/docs`
+- Kontrollera att telefonen har internetåtkomst
+- Testa URL:en i telefonens webbläsare: `https://nds.samincodes.com/docs`
 
 ### npm install ger peer dependency-fel
 
@@ -290,15 +190,15 @@ Projektet kräver **Expo SDK 54**. Uppdatera Expo Go till senaste version via Ap
 
 ### Platsspårning-togglen fungerar inte
 
-Kontrollera att du har gett appen platsbehörighet. Gå till telefonens Inställningar > Nordic Heritage > Plats och välj "Medan appen används". Förgrundsspårningen aktiveras automatiskt i Expo Go.
+Kontrollera att du har gett appen platsbehörighet. Gå till telefonens Inställningar > Nordic Heritage > Plats och välj "Medan appen används".
 
 ### Prenumeration misslyckas med "Anropet misslyckades"
 
-Backend-servern svarar inte. Kontrollera att både `uvicorn` och `ngrok` körs.
+Produktionsservern `nds.samincodes.com` svarar inte. Kontrollera din internetanslutning eller försök igen senare.
 
 ---
 
-## Snabbstart (tl;dr)
+## Snabbstart
 
 ```bash
 # 1. Installera beroenden
@@ -307,11 +207,5 @@ npm install --legacy-peer-deps
 # 2. Starta appen
 npx expo start --host lan
 
-# 3. Skanna QR-koden med telefonen
-
-# 4. I en annan terminal — starta backend + ngrok
-cd ../Nordic-Digital-Solutions
-source .venv/bin/activate
-uvicorn app:app --host 0.0.0.0 --port 8000 &
-ngrok http --url=unrushed-maximum-subatomic.ngrok-free.dev 8000
+# 3. Skanna QR-koden med telefonen — klart!
 ```

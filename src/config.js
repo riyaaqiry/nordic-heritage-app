@@ -1,5 +1,5 @@
-// Byt denna URL till er servers riktiga adress vid deployment
-export const API_BASE_URL = 'https://unrushed-maximum-subatomic.ngrok-free.dev';
+// Produktions-URL (Nordic Digital Solutions)
+export const API_BASE_URL = 'https://nds.samincodes.com';
 
 // Avstånd i meter för att trigga notis om världsarv
 export const PROXIMITY_THRESHOLD_METERS = 5000;

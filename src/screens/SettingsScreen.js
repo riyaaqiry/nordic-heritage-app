@@ -10,7 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { subscribeUser, unsubscribeUser } from '../services/api';
+import { loginUser, subscribeUser, unsubscribeUser } from '../services/api';
 import {
   requestLocationPermissions,
   startBackgroundLocationTracking,
@@ -26,6 +26,8 @@ export default function SettingsScreen() {
   const [userId, setUserId] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [trackingEnabled, setTrackingEnabled] = useState(false);
   const [trackingMode, setTrackingMode] = useState(null); // 'background' | 'foreground'
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -45,7 +47,10 @@ export default function SettingsScreen() {
 
     if (storedUserId) setUserId(storedUserId);
     if (storedPhone) setPhone(storedPhone);
-    if (storedEmail) setEmail(storedEmail);
+    if (storedEmail) {
+      setEmail(storedEmail);
+      setIsLoggedIn(true);
+    }
     if (storedSubscribed === 'true') setIsSubscribed(true);
 
     if (storedTracking === 'true') {
@@ -117,23 +122,47 @@ export default function SettingsScreen() {
     await AsyncStorage.setItem('notifications_enabled', value.toString());
   };
 
-  const handleSubscribe = async () => {
-    if (!phone && !email) {
-      Alert.alert('Saknar kontaktinfo', 'Ange telefonnummer eller e-post.');
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Saknar uppgifter', 'Ange e-post och lösenord.');
       return;
     }
 
-    const generatedUserId = userId || `user_${Date.now()}`;
-    setUserId(generatedUserId);
-    await AsyncStorage.setItem('user_id', generatedUserId);
-    await AsyncStorage.setItem('phone', phone);
-    await AsyncStorage.setItem('email', email);
+    try {
+      await loginUser(email, password);
+      setUserId(email);
+      setIsLoggedIn(true);
+      await AsyncStorage.setItem('user_id', email);
+      await AsyncStorage.setItem('email', email);
+      Alert.alert('Inloggad!', `Välkommen ${email}`);
+    } catch (err) {
+      Alert.alert('Inloggningen misslyckades', err.message);
+    }
+  };
 
-    const result = await subscribeUser(generatedUserId, phone || null, email || null, null);
+  const handleLogout = async () => {
+    setIsLoggedIn(false);
+    setIsSubscribed(false);
+    setUserId('');
+    setEmail('');
+    setPhone('');
+    setPassword('');
+    await AsyncStorage.multiRemove(['user_id', 'email', 'phone', 'is_subscribed']);
+    Alert.alert('Utloggad');
+  };
+
+  const handleSubscribe = async () => {
+    if (!phone && !email) {
+      Alert.alert('Saknar kontaktinfo', 'Ange telefonnummer för SMS-notiser.');
+      return;
+    }
+
+    const result = await subscribeUser(email, phone || null, email, null);
 
     if (result.success) {
       setIsSubscribed(true);
       await AsyncStorage.setItem('is_subscribed', 'true');
+      await AsyncStorage.setItem('phone', phone);
       Alert.alert('Prenumeration aktiverad!', 'Du får nu notiser om världsarv i din närhet.');
     } else {
       Alert.alert('Fel', result.error || 'Kunde inte skapa prenumeration.');
@@ -141,7 +170,7 @@ export default function SettingsScreen() {
   };
 
   const handleUnsubscribe = async () => {
-    const result = await unsubscribeUser(userId);
+    const result = await unsubscribeUser(email);
     if (result.success) {
       setIsSubscribed(false);
       await AsyncStorage.setItem('is_subscribed', 'false');
@@ -184,44 +213,79 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Kontaktuppgifter</Text>
-        <Text style={styles.hint}>
-          Ange telefonnummer och/eller e-post för att få SMS/e-postnotiser
-        </Text>
-        <TextInput
-          style={styles.input}
-          placeholder="+46701234567"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="din@email.se"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-
-        {!isSubscribed ? (
-          <TouchableOpacity style={styles.button} onPress={handleSubscribe}>
-            <Text style={styles.buttonText}>Aktivera prenumeration</Text>
-          </TouchableOpacity>
+        <Text style={styles.sectionTitle}>Konto</Text>
+        {!isLoggedIn ? (
+          <View>
+            <Text style={styles.hint}>
+              Logga in med samma konto som på hemsidan
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="din@email.se"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Lösenord"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+            <TouchableOpacity style={styles.button} onPress={handleLogin}>
+              <Text style={styles.buttonText}>Logga in</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <View>
             <View style={styles.subscribedBadge}>
-              <Text style={styles.subscribedText}>Prenumeration aktiv</Text>
+              <Text style={styles.subscribedText}>Inloggad som {email}</Text>
             </View>
             <TouchableOpacity
               style={[styles.button, styles.dangerButton]}
-              onPress={handleUnsubscribe}
+              onPress={handleLogout}
             >
-              <Text style={styles.buttonText}>Avsluta prenumeration</Text>
+              <Text style={styles.buttonText}>Logga ut</Text>
             </TouchableOpacity>
           </View>
         )}
       </View>
+
+      {isLoggedIn && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>SMS-notiser</Text>
+          <Text style={styles.hint}>
+            Ange telefonnummer för att få SMS när du är nära ett världsarv
+          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder="+46701234567"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+          />
+
+          {!isSubscribed ? (
+            <TouchableOpacity style={styles.button} onPress={handleSubscribe}>
+              <Text style={styles.buttonText}>Aktivera prenumeration</Text>
+            </TouchableOpacity>
+          ) : (
+            <View>
+              <View style={styles.subscribedBadge}>
+                <Text style={styles.subscribedText}>Prenumeration aktiv</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.button, styles.dangerButton]}
+                onPress={handleUnsubscribe}
+              >
+                <Text style={styles.buttonText}>Avsluta prenumeration</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Om appen</Text>
