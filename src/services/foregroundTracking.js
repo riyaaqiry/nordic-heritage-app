@@ -81,17 +81,30 @@ export async function startForegroundTracking() {
     }
   );
 
-  // 2. Poll-timer (fångar stillastående + ger periodisk kontroll)
-  pollInterval = setInterval(async () => {
+  // 2. Poll-timer (fångar stillastående + ger periodisk kontroll).
+  //    Omedelbar första koll så användaren inte väntar en hel cykel.
+  pollOnce();
+  pollInterval = setInterval(pollOnce, 60000); // var 60:e sekund
+}
+
+async function pollOnce() {
+  try {
+    let loc;
     try {
-      const loc = await Location.getCurrentPositionAsync({
+      loc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      checkProximity(loc.coords.latitude, loc.coords.longitude);
-    } catch (err) {
-      console.warn('Foreground poll error:', err);
+    } catch (e) {
+      // En färsk fix saknas ofta vid kallstart och i emulatorn
+      // (inga satelliter) — fall tillbaka på senast kända position.
+      loc = await Location.getLastKnownPositionAsync();
     }
-  }, 60000); // var 60:e sekund
+    if (loc) {
+      checkProximity(loc.coords.latitude, loc.coords.longitude);
+    }
+  } catch (err) {
+    console.warn('Foreground poll error:', err);
+  }
 }
 
 /**
