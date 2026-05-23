@@ -121,8 +121,8 @@ nordic-heritage-app/
 │   │   └── SettingsScreen.js      # "Inställningar" — spårning & prenumeration
 │   └── services/
 │       ├── api.js                 # HTTP-anrop till backend
-│       ├── location.js            # Platsbehörigheter + bakgrundsspårning
-│       ├── locationTask.js        # Bakgrundsuppgift (TaskManager)
+│       ├── location.js            # Platsbehörigheter + nuvarande position
+│       ├── geofencing.js          # Geofence-baserad bakgrundsspårning (TaskManager)
 │       ├── foregroundTracking.js  # Förgrundsspårning (fallback i Expo Go)
 │       └── notifications.js       # Push-notis-konfiguration
 └── assets/                        # Ikoner och splash screen

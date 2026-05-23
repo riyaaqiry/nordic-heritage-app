@@ -19,9 +19,6 @@ let pollInterval = null;
 
 async function checkProximity(latitude, longitude) {
   try {
-    const userId = await AsyncStorage.getItem('user_id');
-    if (!userId) return;
-
     const radiusKm = PROXIMITY_THRESHOLD_METERS / 1000;
     const sites = await fetchNearbySites(latitude, longitude, radiusKm);
 
@@ -38,10 +35,8 @@ async function checkProximity(latitude, longitude) {
     const now = Date.now();
     if (lastNotified && now - parseInt(lastNotified) < 3600000) return;
 
-    // Trigga backend-notis (SMS/email)
-    await triggerLocationNotification(userId, siteId, siteName);
-
-    // Visa lokal push-notis
+    // Lokal push-notis visas oavsett inloggning — närhetsvarningen är
+    // värdefull även utan konto.
     await Notifications.scheduleNotificationAsync({
       content: {
         title: '🏛️ Världsarv i närheten!',
@@ -50,6 +45,14 @@ async function checkProximity(latitude, longitude) {
       },
       trigger: null,
     });
+
+    // Backend-notis (SMS/e-post) kräver inloggad användare.
+    const userId = await AsyncStorage.getItem('user_id');
+    if (userId) {
+      await triggerLocationNotification(userId, siteId, siteName).catch((err) =>
+        console.warn('Backend-notis misslyckades:', err)
+      );
+    }
 
     await AsyncStorage.setItem(notifiedKey, now.toString());
   } catch (err) {

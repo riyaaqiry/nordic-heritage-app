@@ -5,8 +5,8 @@ import { Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 
-// Importera bakgrundsuppgiften så den registreras
-import './src/services/locationTask';
+// Importera geofencing-uppgiften så den registreras vid appstart
+import './src/services/geofencing';
 
 import HomeScreen from './src/screens/HomeScreen';
 import WidgetScreen from './src/screens/WidgetScreen';

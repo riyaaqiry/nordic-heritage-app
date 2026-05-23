@@ -10,12 +10,17 @@ import {
   ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loginUser, subscribeUser, unsubscribeUser } from '../services/api';
+import {
+  loginUser,
+  subscribeUser,
+  unsubscribeUser,
+  fetchNearbySites,
+} from '../services/api';
 import {
   requestLocationPermissions,
-  startBackgroundLocationTracking,
-  stopBackgroundLocationTracking,
+  getCurrentLocation,
 } from '../services/location';
+import { startGeofencing, stopGeofencing } from '../services/geofencing';
 import {
   startForegroundTracking,
   stopForegroundTracking,
@@ -77,16 +82,28 @@ export default function SettingsScreen() {
       }
 
       if (perms.background) {
-        // Fullständig bakgrundsspårning (kräver development build)
+        // Fullständig bakgrundsspårning via geofencing (kräver development build)
         try {
-          await startBackgroundLocationTracking();
-          setTrackingMode('background');
-          setTrackingEnabled(true);
-          await AsyncStorage.setItem('tracking_enabled', 'true');
-          await AsyncStorage.setItem('tracking_mode', 'background');
-          return;
+          const loc = await getCurrentLocation();
+          const sites = await fetchNearbySites(
+            loc.coords.latitude,
+            loc.coords.longitude,
+            150
+          );
+          const { started, count } = await startGeofencing(sites);
+          if (started) {
+            setTrackingMode('background');
+            setTrackingEnabled(true);
+            await AsyncStorage.setItem('tracking_enabled', 'true');
+            await AsyncStorage.setItem('tracking_mode', 'background');
+            Alert.alert(
+              'Bakgrundsspårning aktiv',
+              `Bevakar ${count} världsarv i din närhet.`
+            );
+            return;
+          }
         } catch (err) {
-          console.warn('Bakgrundsspårning misslyckades, använder förgrund:', err);
+          console.warn('Geofencing misslyckades, använder förgrund:', err);
         }
       }
 
@@ -99,7 +116,7 @@ export default function SettingsScreen() {
     } else {
       // Stoppa allt
       if (trackingMode === 'background') {
-        await stopBackgroundLocationTracking();
+        await stopGeofencing();
       } else {
         stopForegroundTracking();
       }
