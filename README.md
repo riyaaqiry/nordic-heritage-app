@@ -2,58 +2,36 @@
 
 React Native (Expo) app för iOS och Android som spårar användarens position i bakgrunden och skickar platsdata till `POST /api/notification/location`. Backend hittar närmaste UNESCO-världsarv och triggar notifikationer (lokal push-notis, SMS och e-post) till prenumeranter.
 
+Expo-utvecklingsservern hostas på **Railway** så att appen alltid är tillgänglig via Expo Go — ingen dator behöver vara igång.
+
 ---
 
 ## Innehåll
 
-1. [Förutsättningar](#förutsättningar)
-2. [Installation](#installation)
-3. [Starta appen](#starta-appen)
-4. [Köra på fysisk iPhone](#köra-på-fysisk-iphone)
-5. [Köra på fysisk Android](#köra-på-fysisk-android)
-6. [Köra på emulator (dator)](#köra-på-emulator-dator)
-7. [Hur appen fungerar](#hur-appen-fungerar)
-8. [Flikar i appen](#flikar-i-appen)
-9. [Projektstruktur](#projektstruktur)
-10. [API-endpoints som appen använder](#api-endpoints-som-appen-använder)
-11. [Lokal utveckling (valfritt)](#lokal-utveckling-valfritt)
-12. [Vanliga problem och lösningar](#vanliga-problem-och-lösningar)
+1. [Snabbstart — öppna appen](#snabbstart--öppna-appen)
+2. [Köra på fysisk iPhone](#köra-på-fysisk-iphone)
+3. [Köra på fysisk Android](#köra-på-fysisk-android)
+4. [Köra på emulator (dator)](#köra-på-emulator-dator)
+5. [Hur appen fungerar](#hur-appen-fungerar)
+6. [Flikar i appen](#flikar-i-appen)
+7. [Hosting och deployment](#hosting-och-deployment)
+8. [Projektstruktur](#projektstruktur)
+9. [API-endpoints som appen använder](#api-endpoints-som-appen-använder)
+10. [Lokal utveckling (valfritt)](#lokal-utveckling-valfritt)
+11. [Vanliga problem och lösningar](#vanliga-problem-och-lösningar)
 
 ---
 
-## Förutsättningar
+## Snabbstart — öppna appen
 
-| Verktyg | Version | Installera |
-|---------|---------|------------|
-| Node.js | 18 eller nyare | [nodejs.org](https://nodejs.org/) |
-| npm | Följer med Node.js | - |
-| Expo Go (iOS) | Senaste från App Store | [App Store-länk](https://apps.apple.com/app/expo-go/id982107779) |
-| Expo Go (Android) | Senaste från Google Play | [Google Play-länk](https://play.google.com/store/apps/details?id=host.exp.exponent) |
+Appen hostas på Railway. Ingen dator behöver vara igång.
 
-> **OBS:** Du behöver **inte** installera Xcode eller Android Studio for att testa. Expo Go räcker.
+1. Ladda ner **Expo Go** — [App Store (iOS)](https://apps.apple.com/app/expo-go/id982107779) | [Google Play (Android)](https://play.google.com/store/apps/details?id=host.exp.exponent)
+2. Öppna Expo Go → **Enter URL manually**
+3. Skriv in: `exp://calm-beauty.up.railway.app`
+4. Appen startar — logga in, platsspårning och notiser fungerar direkt
 
----
-
-## Installation
-
-```bash
-cd nordic-heritage-app
-npm install --legacy-peer-deps
-```
-
-> `--legacy-peer-deps` behövs p.g.a. Expo SDK 54:s beroenden. **Kör aldrig** `npm audit fix --force` — det bryter paketversioner.
-
----
-
-## Starta appen
-
-```bash
-npx expo start --host lan
-```
-
-> `--host lan` är **viktigt** — utan det försöker telefonen ansluta till `localhost` vilket inte fungerar.
-
-Du ser nu en QR-kod i terminalen. Ingen backend eller ngrok behövs — appen pekar direkt mot produktionsservern `nds.samincodes.com`.
+> Ingen dator, inget Wi-Fi-krav, ingen installation. Fungerar på både iPhone och Android.
 
 ---
 
@@ -62,26 +40,19 @@ Du ser nu en QR-kod i terminalen. Ingen backend eller ngrok behövs — appen pe
 ### Förutsättningar
 
 - iPhone med **Expo Go** installerad från App Store
-- Telefon och dator på **samma Wi-Fi**
 
 ### Steg för steg
 
-1. Starta appen på datorn:
-   ```bash
-   cd nordic-heritage-app
-   npx expo start --host lan
-   ```
-2. QR-kod visas i terminalen
-3. Öppna **Kamera-appen** på iPhone (inte Expo Go)
-4. Rikta kameran mot QR-koden
-5. Tryck på bannern **"Öppna i Expo Go"**
-6. Appen laddas och startar
-7. Gå till fliken **Inställningar**
-8. Logga in med e-post och lösenord
-9. Appen hämtar din GPS-position och skickar till `/api/notification/location`
-10. En push-notis visas: **"Världsarv i närheten!"** med närmaste UNESCO-plats
-11. Aktivera **Platsspårning** — appen fortsätter skicka position medan den är öppen (förgrundsspårning i Expo Go)
-12. Aktivera **Prenumeration** med telefonnummer — du får nu även SMS/e-post
+1. Öppna **Expo Go** på iPhone
+2. Tryck **Enter URL manually**
+3. Skriv in: `exp://calm-beauty.up.railway.app`
+4. Appen laddas och startar
+5. Gå till fliken **Inställningar**
+6. Logga in med e-post och lösenord
+7. Appen hämtar din GPS-position och skickar till `/api/notification/location`
+8. En push-notis visas: **"Världsarv i närheten!"** med närmaste UNESCO-plats
+9. Aktivera **Platsspårning** — appen fortsätter skicka position medan den är öppen
+10. Aktivera **Prenumeration** med telefonnummer — du får nu även SMS/e-post
 
 > **OBS:** I Expo Go på iPhone körs förgrundsspårning (appen måste vara öppen). Full bakgrundsspårning kräver ett produktionsbygge via `eas build`.
 
@@ -92,29 +63,22 @@ Du ser nu en QR-kod i terminalen. Ingen backend eller ngrok behövs — appen pe
 ### Förutsättningar
 
 - Android-telefon med **Expo Go** installerad från Google Play
-- Telefon och dator på **samma Wi-Fi**
 
 ### Steg för steg
 
-1. Starta appen på datorn:
-   ```bash
-   cd nordic-heritage-app
-   npx expo start --host lan
-   ```
-2. QR-kod visas i terminalen
-3. Öppna **Expo Go** på Android-telefonen
-4. Tryck **Scan QR code**
-5. Skanna QR-koden i terminalen
-6. Appen laddas och startar
-7. Gå till fliken **Inställningar**
-8. Logga in med e-post och lösenord
-9. Appen frågar om **platsbehörighet** — tryck "Tillåt"
-10. Position skickas till `/api/notification/location`
-11. Push-notis visas: **"Världsarv i närheten!"**
-12. Aktivera **Platsspårning** — appen frågar om bakgrundsbehörighet
-13. Välj **"Tillåt hela tiden"** för bakgrundsspårning
-14. Minimera appen — spårningen fortsätter i bakgrunden
-15. Aktivera **Prenumeration** med telefonnummer — du får nu även SMS/e-post
+1. Öppna **Expo Go** på Android-telefonen
+2. Tryck **Enter URL manually**
+3. Skriv in: `exp://calm-beauty.up.railway.app`
+4. Appen laddas och startar
+5. Gå till fliken **Inställningar**
+6. Logga in med e-post och lösenord
+7. Appen frågar om **platsbehörighet** — tryck "Tillåt"
+8. Position skickas till `/api/notification/location`
+9. Push-notis visas: **"Världsarv i närheten!"**
+10. Aktivera **Platsspårning** — appen frågar om bakgrundsbehörighet
+11. Välj **"Tillåt hela tiden"** för bakgrundsspårning
+12. Minimera appen — spårningen fortsätter i bakgrunden
+13. Aktivera **Prenumeration** med telefonnummer — du får nu även SMS/e-post
 
 > **Alternativ: Installera som riktig app (APK)**
 >
@@ -145,11 +109,14 @@ Ladda ner från [developer.android.com/studio](https://developer.android.com/stu
 
 #### 3. Starta appen
 
+Antingen anslut till Railway-servern:
+- Öppna Expo Go i emulatorn → **Enter URL manually** → `exp://calm-beauty.up.railway.app`
+
+Eller kör lokalt:
 ```bash
 cd nordic-heritage-app
 npx expo start --host lan
 ```
-
 Tryck **a** i terminalen för att öppna appen i Android-emulatorn.
 
 #### 4. Simulera GPS-position
@@ -180,11 +147,14 @@ Ladda ner **Xcode** från Mac App Store (ca 12 GB). Öppna Xcode en gång för a
 
 #### 2. Starta appen
 
+Antingen anslut till Railway-servern:
+- Öppna Expo Go i simulatorn → **Enter URL manually** → `exp://calm-beauty.up.railway.app`
+
+Eller kör lokalt:
 ```bash
 cd nordic-heritage-app
 npx expo start --host lan
 ```
-
 Tryck **i** i terminalen för att öppna appen i iOS-simulatorn.
 
 #### 3. Simulera GPS-position
@@ -202,7 +172,7 @@ Samma steg som Android-emulatorn ovan.
 
 ### Flera användare samtidigt
 
-Alla i gruppen kan öppna appen samtidigt — varje telefon/emulator behöver bara vara på samma Wi-Fi som datorn som kör `npx expo start`.
+Alla i gruppen kan öppna appen samtidigt via Railway-URL:en — inget Wi-Fi-krav.
 
 ---
 
@@ -271,6 +241,50 @@ Visar backend-widgeten i en WebView med information om närliggande världsarv o
 
 ---
 
+## Hosting och deployment
+
+### Arkitektur
+
+```
+Railway (calm-beauty)                Railway (NDS-backend)
+Expo dev-server                      FastAPI-server
+exp://calm-beauty.up.railway.app     nds.samincodes.com
+        │                                    │
+        │  Serverar JS-bundle till            │  Hanterar API-anrop:
+        │  Expo Go på telefonen               │  /api/notification/location
+        │                                    │  /unesco/sites
+        ▼                                    │  /api/notification/subscribe
+   Expo Go (iPhone/Android)  ────────────────┘
+```
+
+### Auto-deploy
+
+Båda Railway-projekten är kopplade till GitHub. Vid varje `git push`:
+- Railway bygger och startar om automatiskt
+- Inga manuella steg krävs
+- Appen är alltid tillgänglig
+
+### Miljövariabler
+
+| Projekt | Variabler |
+|---------|-----------|
+| **calm-beauty** (appen) | Inga — API-URL:en är hårdkodad i `src/config.js` |
+| **NDS-backend** | `SMTP2GO_API_KEY`, `HELLOSMS_API_KEY`, `ADMIN_TOKEN`, m.fl. |
+
+### Lokal utveckling
+
+Om du vill köra appen lokalt istället för via Railway:
+
+```bash
+cd nordic-heritage-app
+npm install --legacy-peer-deps
+npx expo start --host lan
+```
+
+> Telefon och dator måste vara på samma Wi-Fi. Appen pekar fortfarande mot `nds.samincodes.com` för backend.
+
+---
+
 ## Projektstruktur
 
 ```
@@ -311,24 +325,6 @@ Alla anrop går mot `https://nds.samincodes.com`.
 
 ---
 
-## Lokal utveckling (valfritt)
-
-Om du vill köra mot en lokal backend istället för produktionsservern, ändra `src/config.js`:
-
-```javascript
-export const API_BASE_URL = 'http://<din-dators-ip>:8000';
-```
-
-Starta sedan backend:
-
-```bash
-cd Nordic-Digital-Solutions
-source .venv/bin/activate
-uvicorn app:app --host 0.0.0.0 --port 8000
-```
-
-> Telefonen och datorn måste vara på samma Wi-Fi. Använd datorns LAN-IP (t.ex. `192.168.1.x`), inte `localhost`.
-
 ---
 
 ## Vanliga problem och lösningar
@@ -366,12 +362,7 @@ Produktionsservern `nds.samincodes.com` svarar inte. Kontrollera din internetans
 
 ## Snabbstart
 
-```bash
-# 1. Installera beroenden
-npm install --legacy-peer-deps
-
-# 2. Starta appen
-npx expo start --host lan
-
-# 3. Skanna QR-koden med telefonen — klart!
-```
+1. Ladda ner **Expo Go** på telefonen ([iOS](https://apps.apple.com/app/expo-go/id982107779) / [Android](https://play.google.com/store/apps/details?id=host.exp.exponent))
+2. Öppna Expo Go → **Enter URL manually**
+3. Skriv in: `exp://calm-beauty.up.railway.app`
+4. Logga in → notis om närmaste världsarv visas direkt
