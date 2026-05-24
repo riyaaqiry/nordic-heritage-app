@@ -22,16 +22,26 @@ Expo-utvecklingsservern hostas på **Railway** så att appen alltid är tillgän
 
 ---
 
-## Snabbstart — öppna appen
+## Snabbstart — ladda ner appen
 
 Appen hostas på Railway. Ingen dator behöver vara igång.
 
-1. Ladda ner **Expo Go** — [App Store (iOS)](https://apps.apple.com/app/expo-go/id982107779) | [Google Play (Android)](https://play.google.com/store/apps/details?id=host.exp.exponent)
-2. Öppna Expo Go → **Enter URL manually**
-3. Skriv in: `exp://nordic-heritage-app-production.up.railway.app`
-4. Appen startar — logga in, platsspårning och notiser fungerar direkt
+### iPhone
 
-> Ingen dator, inget Wi-Fi-krav, ingen installation. Fungerar på både iPhone och Android.
+1. Ladda ner **Expo Go** från [App Store](https://apps.apple.com/app/expo-go/id982107779)
+2. Öppna **Safari**
+3. Skriv: `exps://nordic-heritage-app-production.up.railway.app`
+4. Tryck **Öppna i Expo Go** — klart
+
+### Android
+
+1. Ladda ner **Expo Go** från [Google Play](https://play.google.com/store/apps/details?id=host.exp.exponent)
+2. Öppna **Expo Go**
+3. Tryck **Enter URL manually**
+4. Skriv: `exp://nordic-heritage-app-production.up.railway.app`
+5. Klart
+
+> Ingen dator, inget Wi-Fi-krav, ingen installation.
 
 ---
 
@@ -43,9 +53,9 @@ Appen hostas på Railway. Ingen dator behöver vara igång.
 
 ### Steg för steg
 
-1. Öppna **Expo Go** på iPhone
-2. Tryck **Enter URL manually**
-3. Skriv in: `exp://nordic-heritage-app-production.up.railway.app`
+1. Öppna **Safari** på iPhone
+2. Skriv: `exps://nordic-heritage-app-production.up.railway.app`
+3. Tryck **Öppna i Expo Go**
 4. Appen laddas och startar
 5. Gå till fliken **Inställningar**
 6. Logga in med e-post och lösenord
@@ -68,7 +78,7 @@ Appen hostas på Railway. Ingen dator behöver vara igång.
 
 1. Öppna **Expo Go** på Android-telefonen
 2. Tryck **Enter URL manually**
-3. Skriv in: `exp://nordic-heritage-app-production.up.railway.app`
+3. Skriv: `exp://nordic-heritage-app-production.up.railway.app`
 4. Appen laddas och startar
 5. Gå till fliken **Inställningar**
 6. Logga in med e-post och lösenord
