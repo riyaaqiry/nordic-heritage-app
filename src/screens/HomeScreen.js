@@ -7,15 +7,25 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  ScrollView,
+  Alert,
 } from 'react-native';
-import { fetchNearbySites } from '../services/api';
+import { fetchNearbySites, fetchLanguages, translateText } from '../services/api';
 import { getCurrentLocation } from '../services/location';
+
+// Vanliga språk att visa först i språkväljaren. Övriga följer efter.
+const PRIORITY_LANGS = ['en', 'ar', 'es', 'de', 'fr', 'fa', 'so', 'uk'];
 
 export default function HomeScreen({ navigation }) {
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [location, setLocation] = useState(null);
+
+  const [languages, setLanguages] = useState([]);
+  const [targetLang, setTargetLang] = useState('original');
+  const [translations, setTranslations] = useState({}); // `${id}_${lang}` -> { name, description }
+  const [translating, setTranslating] = useState(false);
 
   const loadSites = async () => {
     try {
@@ -37,6 +47,20 @@ export default function HomeScreen({ navigation }) {
 
   useEffect(() => {
     loadSites();
+    fetchLanguages()
+      .then((langs) => {
+        // Sortera prioriterade språk först.
+        const sorted = [...langs].sort((a, b) => {
+          const ia = PRIORITY_LANGS.indexOf(a.code);
+          const ib = PRIORITY_LANGS.indexOf(b.code);
+          if (ia === -1 && ib === -1) return 0;
+          if (ia === -1) return 1;
+          if (ib === -1) return -1;
+          return ia - ib;
+        });
+        setLanguages(sorted);
+      })
+      .catch(() => {});
   }, []);
 
   const onRefresh = () => {
@@ -44,24 +68,67 @@ export default function HomeScreen({ navigation }) {
     loadSites();
   };
 
-  const renderSite = ({ item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => navigation.navigate('Widget', { siteId: item.id_no })}
-    >
-      <View style={styles.cardHeader}>
-        <Text style={styles.category}>{item.category || 'Okänd'}</Text>
-        <Text style={styles.distance}>{item.distance_km} km</Text>
-      </View>
-      <Text style={styles.siteName}>{item.name_en}</Text>
-      <Text style={styles.country}>{item.states_names}</Text>
-      {item.short_description_en && (
-        <Text style={styles.description} numberOfLines={2}>
-          {item.short_description_en}
-        </Text>
-      )}
-    </TouchableOpacity>
-  );
+  const siteKey = (s) => s.id_no || s.name_en;
+
+  const selectLanguage = async (lang) => {
+    setTargetLang(lang);
+    if (lang === 'original') return;
+
+    setTranslating(true);
+    try {
+      const updates = {};
+      await Promise.all(
+        sites.map(async (s) => {
+          const key = `${siteKey(s)}_${lang}`;
+          if (translations[key]) return;
+          const [nameRes, descRes] = await Promise.all([
+            s.name_en
+              ? translateText(s.name_en, lang)
+              : Promise.resolve({ translated_text: '' }),
+            s.short_description_en
+              ? translateText(s.short_description_en, lang)
+              : Promise.resolve({ translated_text: '' }),
+          ]);
+          updates[key] = {
+            name: nameRes.translated_text,
+            description: descRes.translated_text,
+          };
+        })
+      );
+      setTranslations((prev) => ({ ...prev, ...updates }));
+    } catch (err) {
+      Alert.alert('Översättning misslyckades', err.message);
+      setTargetLang('original');
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  const renderSite = ({ item }) => {
+    const key = `${siteKey(item)}_${targetLang}`;
+    const t = targetLang !== 'original' ? translations[key] : null;
+    const name = t?.name || item.name_en;
+    const description = t?.description || item.short_description_en;
+
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => navigation.navigate('Widget', { siteId: item.id_no })}
+      >
+        <View style={styles.cardHeader}>
+          <Text style={styles.category}>{item.category || 'Okänd'}</Text>
+          <Text style={styles.distance}>{item.distance_km} km</Text>
+        </View>
+        <Text style={styles.siteName}>{name}</Text>
+        <Text style={styles.country}>{item.states_names}</Text>
+        {description ? (
+          <Text style={styles.description} numberOfLines={3}>
+            {description}
+          </Text>
+        ) : null}
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -76,10 +143,36 @@ export default function HomeScreen({ navigation }) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Världsarv i närheten</Text>
-        <Text style={styles.subtitle}>
-          {sites.length} platser inom 150 km
-        </Text>
+        <Text style={styles.subtitle}>{sites.length} platser inom 150 km</Text>
       </View>
+
+      {languages.length > 0 && (
+        <View style={styles.langBar}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <LangChip
+              label="Original"
+              active={targetLang === 'original'}
+              onPress={() => selectLanguage('original')}
+            />
+            {languages.map((l) => (
+              <LangChip
+                key={l.code}
+                label={l.name}
+                active={targetLang === l.code}
+                onPress={() => selectLanguage(l.code)}
+              />
+            ))}
+          </ScrollView>
+          {translating && (
+            <ActivityIndicator
+              style={styles.langSpinner}
+              size="small"
+              color="#1a5276"
+            />
+          )}
+        </View>
+      )}
+
       <FlatList
         data={sites}
         keyExtractor={(item, index) => item.id_no?.toString() || index.toString()}
@@ -96,6 +189,19 @@ export default function HomeScreen({ navigation }) {
   );
 }
 
+function LangChip({ label, active, onPress }) {
+  return (
+    <TouchableOpacity
+      style={[styles.chip, active && styles.chipActive]}
+      onPress={onPress}
+    >
+      <Text style={[styles.chipText, active && styles.chipTextActive]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f6fa' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -103,6 +209,26 @@ const styles = StyleSheet.create({
   header: { padding: 20, paddingBottom: 10, backgroundColor: '#1a5276' },
   title: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
   subtitle: { fontSize: 14, color: '#aed6f1', marginTop: 4 },
+  langBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 8,
+    paddingLeft: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e1e4e8',
+  },
+  langSpinner: { marginHorizontal: 10 },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#eef2f5',
+    marginRight: 8,
+  },
+  chipActive: { backgroundColor: '#1a5276' },
+  chipText: { fontSize: 13, color: '#2c3e50', fontWeight: '600' },
+  chipTextActive: { color: '#fff' },
   list: { padding: 16 },
   card: {
     backgroundColor: '#fff',
