@@ -8,4 +8,5 @@ RUN npm install --legacy-peer-deps
 
 COPY . .
 
-CMD npx expo start --host 0.0.0.0 --port ${PORT:-8081} --non-interactive
+ENV CI=1
+CMD npx expo start --host lan --port ${PORT:-8081}
