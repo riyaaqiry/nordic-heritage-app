@@ -28,7 +28,7 @@ Appen hostas på Railway. Ingen dator behöver vara igång.
 
 1. Ladda ner **Expo Go** — [App Store (iOS)](https://apps.apple.com/app/expo-go/id982107779) | [Google Play (Android)](https://play.google.com/store/apps/details?id=host.exp.exponent)
 2. Öppna Expo Go → **Enter URL manually**
-3. Skriv in: `exp://calm-beauty.up.railway.app`
+3. Skriv in: `exp://nordic-heritage-app-production.up.railway.app`
 4. Appen startar — logga in, platsspårning och notiser fungerar direkt
 
 > Ingen dator, inget Wi-Fi-krav, ingen installation. Fungerar på både iPhone och Android.
@@ -45,7 +45,7 @@ Appen hostas på Railway. Ingen dator behöver vara igång.
 
 1. Öppna **Expo Go** på iPhone
 2. Tryck **Enter URL manually**
-3. Skriv in: `exp://calm-beauty.up.railway.app`
+3. Skriv in: `exp://nordic-heritage-app-production.up.railway.app`
 4. Appen laddas och startar
 5. Gå till fliken **Inställningar**
 6. Logga in med e-post och lösenord
@@ -68,7 +68,7 @@ Appen hostas på Railway. Ingen dator behöver vara igång.
 
 1. Öppna **Expo Go** på Android-telefonen
 2. Tryck **Enter URL manually**
-3. Skriv in: `exp://calm-beauty.up.railway.app`
+3. Skriv in: `exp://nordic-heritage-app-production.up.railway.app`
 4. Appen laddas och startar
 5. Gå till fliken **Inställningar**
 6. Logga in med e-post och lösenord
@@ -110,7 +110,7 @@ Ladda ner från [developer.android.com/studio](https://developer.android.com/stu
 #### 3. Starta appen
 
 Antingen anslut till Railway-servern:
-- Öppna Expo Go i emulatorn → **Enter URL manually** → `exp://calm-beauty.up.railway.app`
+- Öppna Expo Go i emulatorn → **Enter URL manually** → `exp://nordic-heritage-app-production.up.railway.app`
 
 Eller kör lokalt:
 ```bash
@@ -148,7 +148,7 @@ Ladda ner **Xcode** från Mac App Store (ca 12 GB). Öppna Xcode en gång för a
 #### 2. Starta appen
 
 Antingen anslut till Railway-servern:
-- Öppna Expo Go i simulatorn → **Enter URL manually** → `exp://calm-beauty.up.railway.app`
+- Öppna Expo Go i simulatorn → **Enter URL manually** → `exp://nordic-heritage-app-production.up.railway.app`
 
 Eller kör lokalt:
 ```bash
@@ -248,7 +248,7 @@ Visar backend-widgeten i en WebView med information om närliggande världsarv o
 ```
 Railway (calm-beauty)                Railway (NDS-backend)
 Expo dev-server                      FastAPI-server
-exp://calm-beauty.up.railway.app     nds.samincodes.com
+exp://nordic-heritage-app-production.up.railway.app     nds.samincodes.com
         │                                    │
         │  Serverar JS-bundle till            │  Hanterar API-anrop:
         │  Expo Go på telefonen               │  /api/notification/location
@@ -364,5 +364,5 @@ Produktionsservern `nds.samincodes.com` svarar inte. Kontrollera din internetans
 
 1. Ladda ner **Expo Go** på telefonen ([iOS](https://apps.apple.com/app/expo-go/id982107779) / [Android](https://play.google.com/store/apps/details?id=host.exp.exponent))
 2. Öppna Expo Go → **Enter URL manually**
-3. Skriv in: `exp://calm-beauty.up.railway.app`
+3. Skriv in: `exp://nordic-heritage-app-production.up.railway.app`
 4. Logga in → notis om närmaste världsarv visas direkt
