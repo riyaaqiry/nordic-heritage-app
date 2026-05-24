@@ -46,11 +46,17 @@ export async function unsubscribeUser(userId, sites) {
   return response.json();
 }
 
-export async function triggerLocationNotification(userId, siteId, siteName) {
-  const response = await fetch(
-    `${API_BASE_URL}/api/notification/trigger?user_id=${userId}&site_id=${siteId}&site_name=${encodeURIComponent(siteName)}`,
-    { headers: DEFAULT_HEADERS }
-  );
+export async function sendLocationUpdate(userId, latitude, longitude, radius = 150) {
+  const response = await fetch(`${API_BASE_URL}/api/notification/location`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({
+      user_id: userId,
+      latitude,
+      longitude,
+      radius,
+    }),
+  });
   return response.json();
 }
 
