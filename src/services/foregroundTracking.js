@@ -15,6 +15,14 @@ import { PROXIMITY_THRESHOLD_METERS } from '../config';
 let watchSubscription = null;
 let pollInterval = null;
 
+// Max 1 notis per plats per timme.
+const COOLDOWN_MS = 3600000;
+
+// In-memory-dedup: hindrar att flera snabba positionsuppdateringar
+// (t.ex. från en simulerad rutt) skickar dubblettnotiser innan den
+// beständiga cooldownen hunnit skrivas till AsyncStorage.
+const recentlyNotified = new Map();
+
 // ---- Intern hjälpfunktion: kolla närhet ----
 
 async function checkProximity(latitude, longitude) {
@@ -28,12 +36,18 @@ async function checkProximity(latitude, longitude) {
     const siteId =
       nearest.id_no || nearest.name_en?.toLowerCase().replace(/\s+/g, '_');
     const siteName = nearest.name_en || 'Okänt världsarv';
+    const now = Date.now();
 
-    // Cooldown — max 1 notis per plats per timme
+    // Synkron claim (ingen await mellan get och set) — atomär i JS och
+    // dedupar därför samtidiga anrop för samma plats inom cooldownen.
+    const lastInMemory = recentlyNotified.get(siteId);
+    if (lastInMemory && now - lastInMemory < COOLDOWN_MS) return;
+    recentlyNotified.set(siteId, now);
+
+    // Beständig cooldown över appomstarter.
     const notifiedKey = `notified_${siteId}`;
     const lastNotified = await AsyncStorage.getItem(notifiedKey);
-    const now = Date.now();
-    if (lastNotified && now - parseInt(lastNotified) < 3600000) return;
+    if (lastNotified && now - parseInt(lastNotified) < COOLDOWN_MS) return;
 
     // Lokal push-notis visas oavsett inloggning — närhetsvarningen är
     // värdefull även utan konto.
