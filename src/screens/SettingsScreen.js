@@ -12,6 +12,11 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   loginUser,
+  loginWithTwoFactor,
+  registerUser,
+  getMe,
+  updateProfile,
+  deleteAccount,
   subscribeUser,
   unsubscribeUser,
   fetchNearbySites,
@@ -38,6 +43,14 @@ export default function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
 
+  // Auth: växla mellan inloggning och registrering, samt 2FA-steget.
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
+  const [fullName, setFullName] = useState('');
+  const [homeAddress, setHomeAddress] = useState('');
+  const [pendingTwoFactor, setPendingTwoFactor] = useState(null); // temp_token
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [busy, setBusy] = useState(false);
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -46,15 +59,22 @@ export default function SettingsScreen() {
     const storedUserId = await AsyncStorage.getItem('user_id');
     const storedPhone = await AsyncStorage.getItem('phone');
     const storedEmail = await AsyncStorage.getItem('email');
+    const storedToken = await AsyncStorage.getItem('access_token');
+    const storedFullName = await AsyncStorage.getItem('full_name');
+    const storedHomeAddress = await AsyncStorage.getItem('home_address');
     const storedTracking = await AsyncStorage.getItem('tracking_enabled');
     const storedMode = await AsyncStorage.getItem('tracking_mode');
     const storedSubscribed = await AsyncStorage.getItem('is_subscribed');
 
     if (storedUserId) setUserId(storedUserId);
     if (storedPhone) setPhone(storedPhone);
-    if (storedEmail) {
+    if (storedFullName) setFullName(storedFullName);
+    if (storedHomeAddress) setHomeAddress(storedHomeAddress);
+    if (storedEmail && storedToken) {
       setEmail(storedEmail);
       setIsLoggedIn(true);
+      // Uppdatera profilen från servern (fångar ändringar gjorda på hemsidan).
+      refreshProfile();
     }
     if (storedSubscribed === 'true') setIsSubscribed(true);
 
@@ -139,22 +159,171 @@ export default function SettingsScreen() {
     await AsyncStorage.setItem('notifications_enabled', value.toString());
   };
 
+  // Sparar token + hämtar profilen från /auth/me och lägger den i state/storage.
+  // 'user_id' förblir e-posten (notistjänsten är knuten till e-post); det
+  // numeriska id:t sparas separat som 'auth_user_id' för betalningar.
+  const finishLogin = async (token) => {
+    await AsyncStorage.setItem('access_token', token);
+    try {
+      const me = await getMe();
+      setEmail(me.email);
+      setUserId(me.email);
+      setFullName(me.full_name || '');
+      setHomeAddress(me.home_address || '');
+      setIsSubscribed(!!me.has_subscription);
+      await AsyncStorage.multiSet([
+        ['user_id', me.email],
+        ['auth_user_id', String(me.id)],
+        ['email', me.email],
+        ['full_name', me.full_name || ''],
+        ['home_address', me.home_address || ''],
+        ['is_subscribed', me.has_subscription ? 'true' : 'false'],
+      ]);
+    } catch (err) {
+      // Token sparad men /me misslyckades — fortsätt ändå som inloggad.
+      await AsyncStorage.multiSet([
+        ['user_id', email],
+        ['email', email],
+      ]);
+      setUserId(email);
+    }
+    setIsLoggedIn(true);
+    setPassword('');
+    setPendingTwoFactor(null);
+    setTwoFactorCode('');
+  };
+
+  const refreshProfile = async () => {
+    try {
+      const me = await getMe();
+      setEmail(me.email);
+      setUserId(me.email);
+      setFullName(me.full_name || '');
+      setHomeAddress(me.home_address || '');
+      setIsSubscribed(!!me.has_subscription);
+      await AsyncStorage.multiSet([
+        ['auth_user_id', String(me.id)],
+        ['full_name', me.full_name || ''],
+        ['home_address', me.home_address || ''],
+        ['is_subscribed', me.has_subscription ? 'true' : 'false'],
+      ]);
+    } catch (err) {
+      // Token kan ha gått ut — användaren får logga in igen vid behov.
+    }
+  };
+
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Saknar uppgifter', 'Ange e-post och lösenord.');
       return;
     }
-
+    setBusy(true);
     try {
-      await loginUser(email, password);
-      setUserId(email);
-      setIsLoggedIn(true);
-      await AsyncStorage.setItem('user_id', email);
-      await AsyncStorage.setItem('email', email);
-      Alert.alert('Inloggad!', `Välkommen ${email}`);
+      const res = await loginUser(email, password);
+      if (res.requires_2fa) {
+        setPendingTwoFactor(res.temp_token);
+        Alert.alert('Tvåfaktor', 'Ange engångskoden från din autentiseringsapp.');
+      } else if (res.access_token) {
+        await finishLogin(res.access_token);
+        Alert.alert('Inloggad!', `Välkommen ${email}`);
+      } else {
+        Alert.alert('Inloggningen misslyckades', 'Oväntat svar från servern.');
+      }
     } catch (err) {
       Alert.alert('Inloggningen misslyckades', err.message);
+    } finally {
+      setBusy(false);
     }
+  };
+
+  const handleVerify2fa = async () => {
+    if (!twoFactorCode) {
+      Alert.alert('Saknar kod', 'Ange engångskoden.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const tok = await loginWithTwoFactor(pendingTwoFactor, twoFactorCode);
+      await finishLogin(tok.access_token);
+      Alert.alert('Inloggad!', `Välkommen ${email}`);
+    } catch (err) {
+      Alert.alert('Fel kod', err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!email || !password) {
+      Alert.alert('Saknar uppgifter', 'Ange e-post och lösenord.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await registerUser({
+        email,
+        password,
+        fullName: fullName || null,
+        homeAddress: homeAddress || null,
+      });
+      // Kontot skapat — logga in direkt för att få en token.
+      const res = await loginUser(email, password);
+      if (res.access_token) {
+        await finishLogin(res.access_token);
+        Alert.alert('Konto skapat!', `Välkommen ${email}`);
+      } else {
+        setAuthMode('login');
+        Alert.alert('Konto skapat', 'Logga in med dina uppgifter.');
+      }
+    } catch (err) {
+      Alert.alert('Registreringen misslyckades', err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    setBusy(true);
+    try {
+      const me = await updateProfile({
+        fullName: fullName || null,
+        homeAddress: homeAddress || null,
+      });
+      setFullName(me.full_name || '');
+      setHomeAddress(me.home_address || '');
+      await AsyncStorage.multiSet([
+        ['full_name', me.full_name || ''],
+        ['home_address', me.home_address || ''],
+      ]);
+      Alert.alert('Sparat', 'Profilen har uppdaterats.');
+    } catch (err) {
+      Alert.alert('Fel', err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Radera konto',
+      'Detta raderar ditt konto permanent. Är du säker?',
+      [
+        { text: 'Avbryt', style: 'cancel' },
+        {
+          text: 'Radera',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteAccount();
+              await handleLogout();
+              Alert.alert('Konto raderat');
+            } catch (err) {
+              Alert.alert('Fel', err.message);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleLogout = async () => {
@@ -164,8 +333,21 @@ export default function SettingsScreen() {
     setEmail('');
     setPhone('');
     setPassword('');
-    await AsyncStorage.multiRemove(['user_id', 'email', 'phone', 'is_subscribed']);
-    Alert.alert('Utloggad');
+    setFullName('');
+    setHomeAddress('');
+    setAuthMode('login');
+    setPendingTwoFactor(null);
+    setTwoFactorCode('');
+    await AsyncStorage.multiRemove([
+      'user_id',
+      'auth_user_id',
+      'access_token',
+      'email',
+      'phone',
+      'full_name',
+      'home_address',
+      'is_subscribed',
+    ]);
   };
 
   const handleSubscribe = async () => {
@@ -232,39 +414,129 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Konto</Text>
         {!isLoggedIn ? (
-          <View>
-            <Text style={styles.hint}>
-              Logga in med samma konto som på hemsidan
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="din@email.se"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Lösenord"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-            <TouchableOpacity style={styles.button} onPress={handleLogin}>
-              <Text style={styles.buttonText}>Logga in</Text>
-            </TouchableOpacity>
-          </View>
+          pendingTwoFactor ? (
+            <View>
+              <Text style={styles.hint}>
+                Ange engångskoden från din autentiseringsapp.
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="123456"
+                value={twoFactorCode}
+                onChangeText={setTwoFactorCode}
+                keyboardType="number-pad"
+              />
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleVerify2fa}
+                disabled={busy}
+              >
+                <Text style={styles.buttonText}>Verifiera</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setPendingTwoFactor(null);
+                  setTwoFactorCode('');
+                }}
+              >
+                <Text style={styles.linkText}>Avbryt</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View>
+              <Text style={styles.hint}>
+                {authMode === 'login'
+                  ? 'Logga in med samma konto som på hemsidan'
+                  : 'Skapa ett nytt konto — fungerar även på hemsidan'}
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="din@email.se"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Lösenord"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+              {authMode === 'register' && (
+                <>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Namn (valfritt)"
+                    value={fullName}
+                    onChangeText={setFullName}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Hemadress (valfritt)"
+                    value={homeAddress}
+                    onChangeText={setHomeAddress}
+                  />
+                </>
+              )}
+              <TouchableOpacity
+                style={styles.button}
+                onPress={authMode === 'login' ? handleLogin : handleRegister}
+                disabled={busy}
+              >
+                <Text style={styles.buttonText}>
+                  {authMode === 'login' ? 'Logga in' : 'Skapa konto'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() =>
+                  setAuthMode(authMode === 'login' ? 'register' : 'login')
+                }
+              >
+                <Text style={styles.linkText}>
+                  {authMode === 'login'
+                    ? 'Inget konto? Registrera dig'
+                    : 'Har du redan ett konto? Logga in'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )
         ) : (
           <View>
             <View style={styles.subscribedBadge}>
               <Text style={styles.subscribedText}>Inloggad som {email}</Text>
             </View>
+            <Text style={styles.label}>Profil</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Namn"
+              value={fullName}
+              onChangeText={setFullName}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Hemadress"
+              value={homeAddress}
+              onChangeText={setHomeAddress}
+            />
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleSaveProfile}
+              disabled={busy}
+            >
+              <Text style={styles.buttonText}>Spara profil</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, styles.dangerButton]}
               onPress={handleLogout}
             >
               <Text style={styles.buttonText}>Logga ut</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleDeleteAccount}>
+              <Text style={[styles.linkText, styles.dangerLink]}>
+                Radera konto
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -357,4 +629,12 @@ const styles = StyleSheet.create({
   },
   subscribedText: { color: '#27ae60', fontWeight: '600' },
   aboutText: { fontSize: 14, color: '#555', lineHeight: 20 },
+  linkText: {
+    color: '#1a5276',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 12,
+    fontWeight: '600',
+  },
+  dangerLink: { color: '#c0392b' },
 });
