@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
+  Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -20,6 +21,10 @@ import {
   subscribeUser,
   unsubscribeUser,
   fetchNearbySites,
+  createSubscription,
+  cancelSubscription,
+  bankidInitiate,
+  bankidStatus,
 } from '../services/api';
 import {
   requestLocationPermissions,
@@ -51,6 +56,10 @@ export default function SettingsScreen() {
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // Premium-prenumeration (Stripe). Skild från SMS-prenumerationen ovan.
+  const [hasPremium, setHasPremium] = useState(false);
+  const [bankidMessage, setBankidMessage] = useState('');
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -65,6 +74,7 @@ export default function SettingsScreen() {
     const storedTracking = await AsyncStorage.getItem('tracking_enabled');
     const storedMode = await AsyncStorage.getItem('tracking_mode');
     const storedSubscribed = await AsyncStorage.getItem('is_subscribed');
+    const storedPremium = await AsyncStorage.getItem('has_premium');
 
     if (storedUserId) setUserId(storedUserId);
     if (storedPhone) setPhone(storedPhone);
@@ -77,6 +87,7 @@ export default function SettingsScreen() {
       refreshProfile();
     }
     if (storedSubscribed === 'true') setIsSubscribed(true);
+    if (storedPremium === 'true') setHasPremium(true);
 
     if (storedTracking === 'true') {
       setTrackingEnabled(true);
@@ -170,14 +181,14 @@ export default function SettingsScreen() {
       setUserId(me.email);
       setFullName(me.full_name || '');
       setHomeAddress(me.home_address || '');
-      setIsSubscribed(!!me.has_subscription);
+      setHasPremium(!!me.has_subscription);
       await AsyncStorage.multiSet([
         ['user_id', me.email],
         ['auth_user_id', String(me.id)],
         ['email', me.email],
         ['full_name', me.full_name || ''],
         ['home_address', me.home_address || ''],
-        ['is_subscribed', me.has_subscription ? 'true' : 'false'],
+        ['has_premium', me.has_subscription ? 'true' : 'false'],
       ]);
     } catch (err) {
       // Token sparad men /me misslyckades — fortsätt ändå som inloggad.
@@ -200,12 +211,12 @@ export default function SettingsScreen() {
       setUserId(me.email);
       setFullName(me.full_name || '');
       setHomeAddress(me.home_address || '');
-      setIsSubscribed(!!me.has_subscription);
+      setHasPremium(!!me.has_subscription);
       await AsyncStorage.multiSet([
         ['auth_user_id', String(me.id)],
         ['full_name', me.full_name || ''],
         ['home_address', me.home_address || ''],
-        ['is_subscribed', me.has_subscription ? 'true' : 'false'],
+        ['has_premium', me.has_subscription ? 'true' : 'false'],
       ]);
     } catch (err) {
       // Token kan ha gått ut — användaren får logga in igen vid behov.
@@ -329,6 +340,7 @@ export default function SettingsScreen() {
   const handleLogout = async () => {
     setIsLoggedIn(false);
     setIsSubscribed(false);
+    setHasPremium(false);
     setUserId('');
     setEmail('');
     setPhone('');
@@ -338,6 +350,7 @@ export default function SettingsScreen() {
     setAuthMode('login');
     setPendingTwoFactor(null);
     setTwoFactorCode('');
+    setBankidMessage('');
     await AsyncStorage.multiRemove([
       'user_id',
       'auth_user_id',
@@ -347,7 +360,123 @@ export default function SettingsScreen() {
       'full_name',
       'home_address',
       'is_subscribed',
+      'has_premium',
+      'subscription_id',
     ]);
+  };
+
+  // ---- BankID-inloggning ----
+  // Startar en BankID-order, öppnar BankID-appen via autostarttoken och
+  // pollar status tills inloggningen är klar. Kräver att BankID-appen finns
+  // på enheten (eller att backend kör i mock-läge som auto-slutför).
+  const pollBankID = (orderRef) =>
+    new Promise((resolve) => {
+      let tries = 0;
+      const tick = async () => {
+        tries += 1;
+        try {
+          const st = await bankidStatus(orderRef);
+          if (st.status === 'complete' && st.access_token) {
+            setBankidMessage('');
+            await finishLogin(st.access_token);
+            Alert.alert('Inloggad med BankID!');
+            return resolve();
+          }
+          if (st.status === 'failed') {
+            setBankidMessage('');
+            Alert.alert('BankID avbröts', st.details || st.hintCode || 'Försök igen.');
+            return resolve();
+          }
+          setBankidMessage('Väntar på BankID…');
+        } catch (e) {
+          // Nätverksglapp — fortsätt polla.
+        }
+        if (tries > 60) {
+          setBankidMessage('');
+          Alert.alert('BankID', 'Tidsgränsen nåddes. Försök igen.');
+          return resolve();
+        }
+        setTimeout(tick, 2000);
+      };
+      tick();
+    });
+
+  const handleBankID = async () => {
+    setBusy(true);
+    setBankidMessage('Startar BankID…');
+    try {
+      const init = await bankidInitiate();
+      const url = `bankid:///?autostarttoken=${init.autoStartToken}&redirect=null`;
+      // Öppna BankID-appen på samma enhet. Misslyckas tyst om appen saknas
+      // (t.ex. i emulatorn eller när backend kör mock — pollningen sköter resten).
+      Linking.openURL(url).catch(() => {});
+      await pollBankID(init.orderRef);
+    } catch (err) {
+      setBankidMessage('');
+      Alert.alert('BankID misslyckades', err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ---- Premium-prenumeration (Stripe) ----
+  const handleSubscribePremium = async () => {
+    setBusy(true);
+    try {
+      const userIdentifier =
+        (await AsyncStorage.getItem('auth_user_id')) || email;
+      const res = await createSubscription(userIdentifier, 'plan_basic', 'card');
+      if (res.subscription_id) {
+        await AsyncStorage.setItem('subscription_id', String(res.subscription_id));
+      }
+      if (res.url) {
+        // Stripe-checkout öppnas i webbläsaren. Efter betalning återvänder
+        // användaren till appen och trycker "Uppdatera status".
+        Linking.openURL(res.url).catch(() =>
+          Alert.alert('Fel', 'Kunde inte öppna betalsidan.')
+        );
+        Alert.alert(
+          'Slutför i webbläsaren',
+          'Betala i webbläsaren och återvänd sedan hit och tryck "Uppdatera status".'
+        );
+      } else {
+        // Ingen checkout-URL (t.ex. mock) — uppdatera direkt.
+        await refreshProfile();
+        Alert.alert('Prenumeration skapad');
+      }
+    } catch (err) {
+      Alert.alert('Betalning misslyckades', err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCancelPremium = async () => {
+    const subId = await AsyncStorage.getItem('subscription_id');
+    if (!subId) {
+      Alert.alert(
+        'Saknar prenumerations-id',
+        'Hantera prenumerationen på hemsidan i stället.'
+      );
+      return;
+    }
+    setBusy(true);
+    try {
+      await cancelSubscription(subId, 'card');
+      await refreshProfile();
+      Alert.alert('Prenumerationen avbruten');
+    } catch (err) {
+      Alert.alert('Fel', err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRefreshStatus = async () => {
+    setBusy(true);
+    await refreshProfile();
+    setBusy(false);
+    Alert.alert('Uppdaterat', 'Kontostatusen har hämtats på nytt.');
   };
 
   const handleSubscribe = async () => {
@@ -489,6 +618,20 @@ export default function SettingsScreen() {
                   {authMode === 'login' ? 'Logga in' : 'Skapa konto'}
                 </Text>
               </TouchableOpacity>
+              {authMode === 'login' && (
+                <>
+                  <TouchableOpacity
+                    style={[styles.button, styles.bankidButton]}
+                    onPress={handleBankID}
+                    disabled={busy}
+                  >
+                    <Text style={styles.buttonText}>Logga in med BankID</Text>
+                  </TouchableOpacity>
+                  {bankidMessage ? (
+                    <Text style={styles.hint}>{bankidMessage}</Text>
+                  ) : null}
+                </>
+              )}
               <TouchableOpacity
                 onPress={() =>
                   setAuthMode(authMode === 'login' ? 'register' : 'login')
@@ -541,6 +684,43 @@ export default function SettingsScreen() {
           </View>
         )}
       </View>
+
+      {isLoggedIn && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Premium</Text>
+          {hasPremium ? (
+            <View>
+              <View style={styles.subscribedBadge}>
+                <Text style={styles.subscribedText}>Premium aktivt</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.button, styles.dangerButton]}
+                onPress={handleCancelPremium}
+                disabled={busy}
+              >
+                <Text style={styles.buttonText}>Avsluta prenumeration</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View>
+              <Text style={styles.hint}>
+                Lås upp premiumfunktioner. Betalningen sker säkert via Stripe i
+                webbläsaren.
+              </Text>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleSubscribePremium}
+                disabled={busy}
+              >
+                <Text style={styles.buttonText}>Prenumerera</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <TouchableOpacity onPress={handleRefreshStatus} disabled={busy}>
+            <Text style={styles.linkText}>Uppdatera status</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {isLoggedIn && (
         <View style={styles.section}>
@@ -619,6 +799,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   dangerButton: { backgroundColor: '#c0392b' },
+  bankidButton: { backgroundColor: '#193e4f' },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   subscribedBadge: {
     backgroundColor: '#d4efdf',
