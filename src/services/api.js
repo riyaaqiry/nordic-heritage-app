@@ -230,3 +230,44 @@ export async function bankidStatus(orderRef) {
   if (!response.ok) throw await parseError(response, 'BankID-status kunde inte hämtas');
   return response.json(); // BankIDLoginResponse
 }
+
+// ---- Tvåfaktorsautentisering (2FA) ----
+
+export async function twoFactorStatus() {
+  const response = await fetch(`${API_BASE_URL}/auth/2fa/status`, {
+    headers: await authHeaders(),
+  });
+  if (!response.ok) throw await parseError(response, 'Kunde inte hämta 2FA-status');
+  return response.json(); // { two_factor_enabled }
+}
+
+// Startar 2FA-registrering: returnerar hemlighet + otpauth-URI för QR.
+export async function setupTwoFactor() {
+  const response = await fetch(`${API_BASE_URL}/auth/2fa/setup`, {
+    method: 'POST',
+    headers: await authHeaders(),
+  });
+  if (!response.ok) throw await parseError(response, 'Kunde inte starta 2FA-registrering');
+  return response.json(); // { secret, provisioning_uri, message }
+}
+
+// Aktiverar 2FA efter att användaren bekräftat med en engångskod.
+export async function enableTwoFactor(code) {
+  const response = await fetch(`${API_BASE_URL}/auth/2fa/enable`, {
+    method: 'POST',
+    headers: { ...JSON_HEADERS, ...(await authHeaders()) },
+    body: JSON.stringify({ code }),
+  });
+  if (!response.ok) throw await parseError(response, 'Fel kod — 2FA aktiverades inte');
+  return response.json(); // UserResponse
+}
+
+export async function disableTwoFactor(code) {
+  const response = await fetch(`${API_BASE_URL}/auth/2fa/disable`, {
+    method: 'POST',
+    headers: { ...JSON_HEADERS, ...(await authHeaders()) },
+    body: JSON.stringify({ code }),
+  });
+  if (!response.ok) throw await parseError(response, 'Fel kod — 2FA inaktiverades inte');
+  return response.json(); // UserResponse
+}

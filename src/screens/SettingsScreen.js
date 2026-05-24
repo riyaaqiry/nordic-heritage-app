@@ -25,6 +25,10 @@ import {
   cancelSubscription,
   bankidInitiate,
   bankidStatus,
+  twoFactorStatus,
+  setupTwoFactor,
+  enableTwoFactor,
+  disableTwoFactor,
 } from '../services/api';
 import {
   requestLocationPermissions,
@@ -56,9 +60,19 @@ export default function SettingsScreen() {
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Premium-prenumeration (Stripe). Skild från SMS-prenumerationen ovan.
+  // Premium-prenumeration (Stripe). Skild från notisprenumerationen ovan.
   const [hasPremium, setHasPremium] = useState(false);
   const [bankidMessage, setBankidMessage] = useState('');
+
+  // Notiskanaler för världsarvsnotiser (SMS och/eller e-post).
+  const [smsChannel, setSmsChannel] = useState(true);
+  const [emailChannel, setEmailChannel] = useState(true);
+
+  // 2FA.
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [twoFactorSecret, setTwoFactorSecret] = useState('');
+  const [twoFactorUri, setTwoFactorUri] = useState('');
+  const [twoFactorSetupCode, setTwoFactorSetupCode] = useState('');
 
   useEffect(() => {
     loadSettings();
@@ -182,6 +196,7 @@ export default function SettingsScreen() {
       setFullName(me.full_name || '');
       setHomeAddress(me.home_address || '');
       setHasPremium(!!me.has_subscription);
+      setTwoFactorEnabled(!!me.two_factor_enabled);
       await AsyncStorage.multiSet([
         ['user_id', me.email],
         ['auth_user_id', String(me.id)],
@@ -212,6 +227,7 @@ export default function SettingsScreen() {
       setFullName(me.full_name || '');
       setHomeAddress(me.home_address || '');
       setHasPremium(!!me.has_subscription);
+      setTwoFactorEnabled(!!me.two_factor_enabled);
       await AsyncStorage.multiSet([
         ['auth_user_id', String(me.id)],
         ['full_name', me.full_name || ''],
@@ -351,6 +367,10 @@ export default function SettingsScreen() {
     setPendingTwoFactor(null);
     setTwoFactorCode('');
     setBankidMessage('');
+    setTwoFactorEnabled(false);
+    setTwoFactorSecret('');
+    setTwoFactorUri('');
+    setTwoFactorSetupCode('');
     await AsyncStorage.multiRemove([
       'user_id',
       'auth_user_id',
@@ -480,20 +500,43 @@ export default function SettingsScreen() {
   };
 
   const handleSubscribe = async () => {
-    if (!phone && !email) {
-      Alert.alert('Saknar kontaktinfo', 'Ange telefonnummer för SMS-notiser.');
+    if (!smsChannel && !emailChannel) {
+      Alert.alert('Välj kanal', 'Aktivera SMS och/eller e-post.');
+      return;
+    }
+    if (smsChannel && !phone) {
+      Alert.alert('Saknar telefonnummer', 'Ange ett telefonnummer för SMS-notiser.');
       return;
     }
 
-    const result = await subscribeUser(email, phone || null, email, null);
+    setBusy(true);
+    try {
+      // Backend skickar SMS om telefon finns registrerad och e-post om
+      // e-post finns registrerad. Vi skickar bara de kanaler användaren valt.
+      const result = await subscribeUser(
+        email, // user_id (notistjänsten är knuten till e-post)
+        smsChannel ? phone || null : null,
+        emailChannel ? email : null,
+        null
+      );
 
-    if (result.success) {
-      setIsSubscribed(true);
-      await AsyncStorage.setItem('is_subscribed', 'true');
-      await AsyncStorage.setItem('phone', phone);
-      Alert.alert('Prenumeration aktiverad!', 'Du får nu notiser om världsarv i din närhet.');
-    } else {
-      Alert.alert('Fel', result.error || 'Kunde inte skapa prenumeration.');
+      if (result.success) {
+        setIsSubscribed(true);
+        await AsyncStorage.multiSet([
+          ['is_subscribed', 'true'],
+          ['phone', phone || ''],
+        ]);
+        const channels = [smsChannel && 'SMS', emailChannel && 'e-post']
+          .filter(Boolean)
+          .join(' och ');
+        Alert.alert('Notiser aktiverade!', `Du får nu notiser via ${channels}.`);
+      } else {
+        Alert.alert('Fel', result.error || 'Kunde inte aktivera notiser.');
+      }
+    } catch (err) {
+      Alert.alert('Fel', err.message);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -503,6 +546,58 @@ export default function SettingsScreen() {
       setIsSubscribed(false);
       await AsyncStorage.setItem('is_subscribed', 'false');
       Alert.alert('Avprenumererad', 'Du kommer inte längre få notiser.');
+    }
+  };
+
+  // ---- 2FA-hantering ----
+  const handleStartTwoFactor = async () => {
+    setBusy(true);
+    try {
+      const res = await setupTwoFactor();
+      setTwoFactorSecret(res.secret);
+      setTwoFactorUri(res.provisioning_uri);
+    } catch (err) {
+      Alert.alert('Fel', err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleConfirmTwoFactor = async () => {
+    if (!twoFactorSetupCode) {
+      Alert.alert('Saknar kod', 'Ange koden från din autentiseringsapp.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await enableTwoFactor(twoFactorSetupCode);
+      setTwoFactorEnabled(true);
+      setTwoFactorSecret('');
+      setTwoFactorUri('');
+      setTwoFactorSetupCode('');
+      Alert.alert('2FA aktiverat', 'Tvåfaktorsautentisering är nu på.');
+    } catch (err) {
+      Alert.alert('Fel kod', err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDisableTwoFactor = async () => {
+    if (!twoFactorSetupCode) {
+      Alert.alert('Saknar kod', 'Ange en aktuell kod för att stänga av 2FA.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await disableTwoFactor(twoFactorSetupCode);
+      setTwoFactorEnabled(false);
+      setTwoFactorSetupCode('');
+      Alert.alert('2FA inaktiverat');
+    } catch (err) {
+      Alert.alert('Fel kod', err.message);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -724,32 +819,139 @@ export default function SettingsScreen() {
 
       {isLoggedIn && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>SMS-notiser</Text>
+          <Text style={styles.sectionTitle}>Notiser via SMS & e-post</Text>
           <Text style={styles.hint}>
-            Ange telefonnummer för att få SMS när du är nära ett världsarv
+            Få ett meddelande när du är nära ett världsarv. Välj kanaler:
           </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="+46701234567"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-          />
+
+          <View style={styles.row}>
+            <Text style={styles.label}>SMS</Text>
+            <Switch
+              value={smsChannel}
+              onValueChange={setSmsChannel}
+              trackColor={{ true: '#1a5276' }}
+            />
+          </View>
+          {smsChannel && (
+            <TextInput
+              style={styles.input}
+              placeholder="+46701234567"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+            />
+          )}
+
+          <View style={styles.row}>
+            <View style={styles.rowText}>
+              <Text style={styles.label}>E-post</Text>
+              <Text style={styles.hint}>Skickas till {email}</Text>
+            </View>
+            <Switch
+              value={emailChannel}
+              onValueChange={setEmailChannel}
+              trackColor={{ true: '#1a5276' }}
+            />
+          </View>
 
           {!isSubscribed ? (
-            <TouchableOpacity style={styles.button} onPress={handleSubscribe}>
-              <Text style={styles.buttonText}>Aktivera prenumeration</Text>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleSubscribe}
+              disabled={busy}
+            >
+              <Text style={styles.buttonText}>Aktivera notiser</Text>
             </TouchableOpacity>
           ) : (
             <View>
               <View style={styles.subscribedBadge}>
-                <Text style={styles.subscribedText}>Prenumeration aktiv</Text>
+                <Text style={styles.subscribedText}>Notiser aktiva</Text>
               </View>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleSubscribe}
+                disabled={busy}
+              >
+                <Text style={styles.buttonText}>Uppdatera kanaler</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.button, styles.dangerButton]}
                 onPress={handleUnsubscribe}
               >
-                <Text style={styles.buttonText}>Avsluta prenumeration</Text>
+                <Text style={styles.buttonText}>Avsluta notiser</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+
+      {isLoggedIn && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Tvåfaktorsautentisering</Text>
+          {twoFactorEnabled ? (
+            <View>
+              <View style={styles.subscribedBadge}>
+                <Text style={styles.subscribedText}>2FA aktiverat</Text>
+              </View>
+              <Text style={styles.hint}>
+                Ange en aktuell kod för att stänga av 2FA.
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="123456"
+                value={twoFactorSetupCode}
+                onChangeText={setTwoFactorSetupCode}
+                keyboardType="number-pad"
+              />
+              <TouchableOpacity
+                style={[styles.button, styles.dangerButton]}
+                onPress={handleDisableTwoFactor}
+                disabled={busy}
+              >
+                <Text style={styles.buttonText}>Inaktivera 2FA</Text>
+              </TouchableOpacity>
+            </View>
+          ) : twoFactorSecret ? (
+            <View>
+              <Text style={styles.hint}>
+                Lägg till kontot i din autentiseringsapp (t.ex. Google
+                Authenticator) — skriv in nyckeln manuellt eller öppna länken:
+              </Text>
+              <Text style={styles.secretBox} selectable>
+                {twoFactorSecret}
+              </Text>
+              <TouchableOpacity
+                onPress={() => Linking.openURL(twoFactorUri).catch(() => {})}
+              >
+                <Text style={styles.linkText}>Öppna i autentiseringsapp</Text>
+              </TouchableOpacity>
+              <Text style={styles.hint}>Bekräfta med en kod från appen:</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="123456"
+                value={twoFactorSetupCode}
+                onChangeText={setTwoFactorSetupCode}
+                keyboardType="number-pad"
+              />
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleConfirmTwoFactor}
+                disabled={busy}
+              >
+                <Text style={styles.buttonText}>Bekräfta & aktivera</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View>
+              <Text style={styles.hint}>
+                Skydda kontot med en engångskod vid inloggning.
+              </Text>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleStartTwoFactor}
+                disabled={busy}
+              >
+                <Text style={styles.buttonText}>Aktivera 2FA</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -818,4 +1020,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dangerLink: { color: '#c0392b' },
+  secretBox: {
+    fontSize: 16,
+    fontFamily: 'monospace',
+    letterSpacing: 1,
+    color: '#2c3e50',
+    backgroundColor: '#eef2f5',
+    borderRadius: 8,
+    padding: 12,
+    textAlign: 'center',
+    marginVertical: 8,
+  },
 });
