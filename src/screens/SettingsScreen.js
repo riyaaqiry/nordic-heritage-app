@@ -10,17 +10,19 @@ import {
   ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loginUser, subscribeUser, unsubscribeUser } from '../services/api';
+import { loginUser, subscribeUser, unsubscribeUser, sendLocationUpdate } from '../services/api';
 import {
   requestLocationPermissions,
   startBackgroundLocationTracking,
   stopBackgroundLocationTracking,
+  getCurrentLocation,
 } from '../services/location';
 import {
   startForegroundTracking,
   stopForegroundTracking,
 } from '../services/foregroundTracking';
 import { registerForPushNotifications } from '../services/notifications';
+import * as Notifications from 'expo-notifications';
 
 export default function SettingsScreen() {
   const [userId, setUserId] = useState('');
@@ -122,6 +124,36 @@ export default function SettingsScreen() {
     await AsyncStorage.setItem('notifications_enabled', value.toString());
   };
 
+  const notifyNearestSite = async (loggedInUserId) => {
+    try {
+      const perms = await requestLocationPermissions();
+      if (!perms.foreground) return;
+
+      await registerForPushNotifications();
+
+      const loc = await getCurrentLocation();
+      const result = await sendLocationUpdate(
+        loggedInUserId,
+        loc.coords.latitude,
+        loc.coords.longitude,
+        150
+      );
+
+      if (result.success && result.site_name) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: '🏛️ Världsarv i närheten!',
+            body: `${result.site_name} är ${result.distance_km} km bort. Tryck för att läsa mer!`,
+            data: { siteId: result.site_id, siteName: result.site_name },
+          },
+          trigger: null,
+        });
+      }
+    } catch (err) {
+      console.warn('Kunde inte hämta närliggande världsarv:', err);
+    }
+  };
+
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Saknar uppgifter', 'Ange e-post och lösenord.');
@@ -135,6 +167,7 @@ export default function SettingsScreen() {
       await AsyncStorage.setItem('user_id', email);
       await AsyncStorage.setItem('email', email);
       Alert.alert('Inloggad!', `Välkommen ${email}`);
+      notifyNearestSite(email);
     } catch (err) {
       Alert.alert('Inloggningen misslyckades', err.message);
     }
