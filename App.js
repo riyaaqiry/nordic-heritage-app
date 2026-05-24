@@ -9,6 +9,7 @@ import * as Notifications from 'expo-notifications';
 import './src/services/geofencing';
 
 import HomeScreen from './src/screens/HomeScreen';
+import ChatScreen from './src/screens/ChatScreen';
 import WidgetScreen from './src/screens/WidgetScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
@@ -45,6 +46,14 @@ export default function App() {
             title: 'Upptäck',
             headerShown: false,
             tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🗺️</Text>,
+          }}
+        />
+        <Tab.Screen
+          name="Chat"
+          component={ChatScreen}
+          options={{
+            title: 'AI-guide',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>💬</Text>,
           }}
         />
         <Tab.Screen
