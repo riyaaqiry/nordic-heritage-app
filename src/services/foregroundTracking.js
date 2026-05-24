@@ -9,7 +9,7 @@
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { fetchNearbySites, triggerLocationNotification } from './api';
+import { sendLocationUpdate } from './api';
 import { PROXIMITY_THRESHOLD_METERS } from '../config';
 
 let watchSubscription = null;
@@ -23,30 +23,20 @@ async function checkProximity(latitude, longitude) {
     if (!userId) return;
 
     const radiusKm = PROXIMITY_THRESHOLD_METERS / 1000;
-    const sites = await fetchNearbySites(latitude, longitude, radiusKm);
+    const result = await sendLocationUpdate(userId, latitude, longitude, radiusKm);
 
-    if (!sites || sites.length === 0) return;
+    if (!result.success || !result.site_name) return;
 
-    const nearest = sites[0];
-    const siteId =
-      nearest.id_no || nearest.name_en?.toLowerCase().replace(/\s+/g, '_');
-    const siteName = nearest.name_en || 'Okänt världsarv';
-
-    // Cooldown — max 1 notis per plats per timme
-    const notifiedKey = `notified_${siteId}`;
+    const notifiedKey = `notified_${result.site_id}`;
     const lastNotified = await AsyncStorage.getItem(notifiedKey);
     const now = Date.now();
     if (lastNotified && now - parseInt(lastNotified) < 3600000) return;
 
-    // Trigga backend-notis (SMS/email)
-    await triggerLocationNotification(userId, siteId, siteName);
-
-    // Visa lokal push-notis
     await Notifications.scheduleNotificationAsync({
       content: {
         title: '🏛️ Världsarv i närheten!',
-        body: `${siteName} är bara ${nearest.distance_km} km bort. Tryck för att läsa mer!`,
-        data: { siteId, siteName, lat: latitude, lon: longitude },
+        body: `${result.site_name} är bara ${result.distance_km} km bort. Tryck för att läsa mer!`,
+        data: { siteId: result.site_id, siteName: result.site_name, lat: latitude, lon: longitude },
       },
       trigger: null,
     });
